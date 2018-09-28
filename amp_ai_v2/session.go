@@ -58,7 +58,7 @@ type response struct {
 	FailureReason string `json:"failureReason"`
 }
 
-func (s *Session) observe(contextName string, context map[string]interface{}, timeOut int) (string, error) {
+func (s *Session) Observe(contextName string, context map[string]interface{}, timeOut int) (string, error) {
 	if timeOut == 0 {
 		timeOut = s.timeOut
 	}
@@ -82,7 +82,7 @@ func (s *Session) DecideWithContext(contextName string, context map[string]inter
 	return s.callAmpAgentForDecide(s.amp.decideWithContextUrl, contextName, context, decisionName, candidates, timeOut)
 }
 
-func (s *Session) decide(decisionName string, candidates []CandidateField, timeOut int) (*DecideResponse, error) {
+func (s *Session) Decide(decisionName string, candidates []CandidateField, timeOut int) (*DecideResponse, error) {
 	return s.callAmpAgentForDecide(s.amp.decideUrl, decisionName, nil, "", candidates, timeOut)
 }
 

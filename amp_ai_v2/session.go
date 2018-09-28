@@ -24,7 +24,7 @@ type Session struct {
 
 type CandidateField struct {
 	Name   string
-	values []interface{}
+	Values []interface{}
 }
 
 type DecideResponse struct {
@@ -44,8 +44,8 @@ type request struct {
 	DecisionName    string                 `json:"decisionName,omitempty"`
 	Name            string                 `json:"name,omitempty"`
 	Index           int32                  `json:"index"`
-	Ts              time.Time              `json:"ts"`
-	AmpToken        string                 `json:"ampToken"`
+	Ts              int64                  `json:"ts"`
+	AmpToken        string                 `json:"ampToken,omitempty"`
 	SessionLifetime int                    `json:"sessionLifetime"`
 	Properties      map[string]interface{} `json:"properties,omitempty"`
 	Decision        *decisionReq           `json:"Decision,omitempty"`
@@ -70,7 +70,7 @@ func (s *Session) observe(contextName string, context map[string]interface{}, ti
 		SessionId:       s.sessionId,
 		Name:            contextName,
 		Index:           atomic.AddInt32(&s.index, 1),
-		Ts:              time.Now(),
+		Ts:              time.Now().UnixNano() / 1e6,
 		AmpToken:        s.ampToken,
 		SessionLifetime: s.sessionLifetime,
 		Properties:      context,
@@ -102,8 +102,8 @@ func (s *Session) callAmpAgentForDecide(
 	numCandidates := 1
 	c := map[string]interface{}{}
 	for _, f := range candidates {
-		c[f.Name] = f.values
-		numCandidates *= len(f.values)
+		c[f.Name] = f.Values
+		numCandidates *= len(f.Values)
 	}
 	if numCandidates > decideUpperLimit {
 		return nil, fmt.Errorf("can't have more than %d candidates", decideUpperLimit)
@@ -114,7 +114,7 @@ func (s *Session) callAmpAgentForDecide(
 		SessionId:       s.sessionId,
 		Name:            contextName,
 		Index:           atomic.AddInt32(&s.index, 1),
-		Ts:              time.Now(),
+		Ts:              time.Now().UnixNano() / 1e6,
 		AmpToken:        s.ampToken,
 		SessionLifetime: s.sessionLifetime,
 		Properties:      context,
@@ -154,21 +154,25 @@ func (s *Session) callAmpAgent(url string, req *request) (*response, error) {
 		return nil, err
 	}
 
+	log.Println(string(ba))
 	resp, err := s.amp.httpClient.Post(url, "application/json", bytes.NewReader(ba))
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bad status code from server %d with reason: %s", resp.StatusCode, resp.Status)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
-
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("amp agent returned: %s\n%s", resp.Status, string(body))
+	}
+
 	var r response
-	err = json.Unmarshal(body, r)
+	err = json.Unmarshal(body, &r)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unmarshalling response from server: %s", err)
 	}
 
 	if r.AmpToken == "" {
@@ -183,8 +187,8 @@ func getCandidateByIndex(candidates []CandidateField, index int) map[string]inte
 	decision := map[string]interface{}{}
 	partial := index
 	for _, f := range candidates {
-		decision[f.Name] = f.values[partial%len(f.values)]
-		partial /= len(f.values)
+		decision[f.Name] = f.Values[partial%len(f.Values)]
+		partial /= len(f.Values)
 	}
 	return decision
 }

@@ -32,6 +32,9 @@ func main() {
 	}
 	// Make the decideWithContext api call.
 	decisionAndToken, err := firstSession.DecideWithContext("AmpSession", context1, "Decide", candidates, 3000)
+	if err != nil {
+		panic(err)
+	}
 	// Look at the return value.
 	a := decisionAndToken.AmpToken
 	fmt.Printf("Returned ampToken: %s of length %d\n", a, len(a))

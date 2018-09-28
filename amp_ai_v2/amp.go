@@ -13,79 +13,81 @@ const (
 	defaultSessionLifetime = 1800000 // 30 minutes
 )
 
+type AmpOpts struct {
+	ProjectKey, Domain       string
+	Timeout, SessionLifetime int
+}
+
 type Amp struct {
-	timeOut, sessionLifetime                    int
 	ssl                                         bool
 	decideWithContextUrl, decideUrl, observeUrl string
 	httpClient                                  *http.Client
+	AmpOpts
 }
 
-func NewAmp(key, domain string, timeOut, sessionLifetime int) (*Amp, error) {
-	if key == "" {
-		return nil, fmt.Errorf("key can't be empty")
+func (opts AmpOpts) NewAmp() (*Amp, error) {
+	if opts.ProjectKey == "" {
+		return nil, fmt.Errorf("project key can't be empty")
 	}
-	if domain == "" {
+	if opts.Domain == "" {
 		return nil, fmt.Errorf("domain can't be empty")
 	}
-	if timeOut < 0 {
+	if opts.Timeout < 0 {
 		return nil, fmt.Errorf("timeOut must be non-negative")
 	}
-	if timeOut == 0 {
-		timeOut = defaultTimeout
+	if opts.Timeout == 0 {
+		opts.Timeout = defaultTimeout
 	}
-	if sessionLifetime < 0 {
+	if opts.SessionLifetime < 0 {
 		return nil, fmt.Errorf("sessionLifetime must be non-negative")
 	}
-	if sessionLifetime == 0 {
-		sessionLifetime = defaultSessionLifetime
+	if opts.SessionLifetime == 0 {
+		opts.SessionLifetime = defaultSessionLifetime
 	}
-	if !strings.HasPrefix(domain, "http") {
-		return nil, fmt.Errorf(`domain "` + domain + `" must start with http or https`)
+	if !strings.HasPrefix(opts.Domain, "http") {
+		return nil, fmt.Errorf(`domain "` + opts.Domain + `" must start with http or https`)
 	}
 	ssl := false
-	if strings.HasPrefix(domain, "https") {
+	if strings.HasPrefix(opts.Domain, "https") {
 		ssl = true
 	}
 
-	return &Amp{timeOut: timeOut,
-		sessionLifetime:      sessionLifetime,
+	return &Amp{
+		AmpOpts:              opts,
 		ssl:                  ssl,
-		decideWithContextUrl: domain + "/api/core/v2/" + key + "/decideWithContextV2",
-		decideUrl:            domain + "/api/core/v2/" + key + "/decideV2",
-		observeUrl:           domain + "/api/core/v2/" + key + "/observeV2",
+		decideWithContextUrl: opts.Domain + "/api/core/v2/" + opts.ProjectKey + "/decideWithContextV2",
+		decideUrl:            opts.Domain + "/api/core/v2/" + opts.ProjectKey + "/decideV2",
+		observeUrl:           opts.Domain + "/api/core/v2/" + opts.ProjectKey + "/observeV2",
 		httpClient: &http.Client{
 			Transport: &http.Transport{
-				MaxIdleConns:    10000,
-				IdleConnTimeout: time.Minute,
+				MaxIdleConns:        5000,
+				MaxIdleConnsPerHost: 5000,
+				IdleConnTimeout:     time.Minute,
 			},
 		},
 	}, nil
 }
 
 func (a *Amp) CreateSession() (*Session, error) {
-	return a.CreateNewSession("", "", 0, 0, "")
+	return a.CreateNewSession(SessionOpts{})
 }
 
-func (a *Amp) CreateNewSession(userId, sessionId string, timeOut, sessionLifetime int, ampToken string) (*Session, error) {
-	if userId == "" {
-		userId = generateRandomString()
+func (a *Amp) CreateNewSession(opts SessionOpts) (*Session, error) {
+	if opts.UserId == "" {
+		opts.UserId = generateRandomString()
 	}
-	if sessionId == "" {
-		sessionId = generateRandomString()
+	if opts.SessionId == "" {
+		opts.SessionId = generateRandomString()
 	}
-	if timeOut == 0 {
-		timeOut = a.timeOut
+	if opts.Timeout == 0 {
+		opts.Timeout = a.Timeout
 	}
-	if sessionLifetime == 0 {
-		sessionLifetime = a.sessionLifetime
+	if opts.SessionLifetime == 0 {
+		opts.SessionLifetime = a.SessionLifetime
 	}
 	return &Session{
-		amp:             a,
-		userId:          userId,
-		sessionId:       sessionId,
-		timeOut:         timeOut,
-		sessionLifetime: sessionLifetime,
-		ampToken:        ampToken,
+		amp:         a,
+		SessionOpts: opts,
 	}, nil
 }
 

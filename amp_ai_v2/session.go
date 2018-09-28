@@ -16,10 +16,14 @@ const (
 )
 
 type Session struct {
-	amp                         *Amp
-	userId, sessionId, ampToken string
-	index                       int32
-	timeOut, sessionLifetime    int
+	amp   *Amp
+	index int32
+	SessionOpts
+}
+
+type SessionOpts struct {
+	UserId, SessionId, AmpToken string
+	Timeout, SessionLifetime    int
 }
 
 type CandidateField struct {
@@ -48,7 +52,7 @@ type request struct {
 	AmpToken        string                 `json:"ampToken,omitempty"`
 	SessionLifetime int                    `json:"sessionLifetime"`
 	Properties      map[string]interface{} `json:"properties,omitempty"`
-	Decision        *decisionReq           `json:"Decision,omitempty"`
+	Decision        *decisionReq           `json:"decision,omitempty"`
 }
 
 type response struct {
@@ -58,24 +62,25 @@ type response struct {
 	FailureReason string `json:"failureReason"`
 }
 
-func (s *Session) Observe(contextName string, context map[string]interface{}, timeOut int) (string, error) {
+
+func (s *Session) Observe(contextName string, contextProperties map[string]interface{}, timeOut int) (string, error) {
 	if timeOut == 0 {
-		timeOut = s.timeOut
+		timeOut = s.Timeout
 	}
 	if contextName == "" {
 		return "", fmt.Errorf("context name can't be empty")
 	}
 	_, err := s.callAmpAgent(s.amp.observeUrl, &request{
-		UserId:          s.userId,
-		SessionId:       s.sessionId,
+		UserId:          s.UserId,
+		SessionId:       s.SessionId,
 		Name:            contextName,
 		Index:           atomic.AddInt32(&s.index, 1),
 		Ts:              time.Now().UnixNano() / 1e6,
-		AmpToken:        s.ampToken,
-		SessionLifetime: s.sessionLifetime,
-		Properties:      context,
+		AmpToken:        s.AmpToken,
+		SessionLifetime: s.SessionLifetime,
+		Properties:      contextProperties,
 	})
-	return s.ampToken, err
+	return s.AmpToken, err
 }
 
 func (s *Session) DecideWithContext(contextName string, context map[string]interface{}, decisionName string, candidates []CandidateField, timeOut int) (*DecideResponse, error) {
@@ -88,12 +93,12 @@ func (s *Session) Decide(decisionName string, candidates []CandidateField, timeO
 
 func (s *Session) callAmpAgentForDecide(
 	endpoint, contextName string,
-	context map[string]interface{},
+	contextProperties map[string]interface{},
 	decisionName string,
 	candidates []CandidateField,
 	timeOut int) (*DecideResponse, error) {
 	if timeOut == 0 {
-		timeOut = s.timeOut
+		timeOut = s.Timeout
 	}
 	if contextName == "" {
 		return nil, fmt.Errorf("context name can't be empty")
@@ -110,14 +115,14 @@ func (s *Session) callAmpAgentForDecide(
 	}
 
 	req := &request{
-		UserId:          s.userId,
-		SessionId:       s.sessionId,
+		UserId:          s.UserId,
+		SessionId:       s.SessionId,
 		Name:            contextName,
 		Index:           atomic.AddInt32(&s.index, 1),
 		Ts:              time.Now().UnixNano() / 1e6,
-		AmpToken:        s.ampToken,
-		SessionLifetime: s.sessionLifetime,
-		Properties:      context,
+		AmpToken:        s.AmpToken,
+		SessionLifetime: s.SessionLifetime,
+		Properties:      contextProperties,
 		DecisionName:    decisionName,
 		Decision: &decisionReq{
 			Limit:      1,
@@ -133,17 +138,24 @@ func (s *Session) callAmpAgentForDecide(
 	if r.Fallback {
 		return &DecideResponse{
 			Decision: getCandidateByIndex(candidates, 0), // change this to the amp-agent decision if we ever get to that stage
-			AmpToken: s.ampToken,                         // change this to the amp-agent amp token if we ever get to that stage
+			AmpToken: s.AmpToken,                         // change this to the amp-agent amp token if we ever get to that stage
 			Fallback: true,
 		}, fmt.Errorf(r.FailureReason)
 	}
 
 	var decision map[string]interface{}
-	json.Unmarshal([]byte(r.Decision), &decision)
+	err = json.Unmarshal([]byte(r.Decision), &decision)
+	if err != nil {
+		return &DecideResponse{
+			Decision: getCandidateByIndex(candidates, 0),
+			AmpToken: s.AmpToken,
+			Fallback: true,
+		}, err
+	}
 
 	return &DecideResponse{
 		Decision: decision,
-		AmpToken: s.ampToken, // change this to the amp-agent amp token if we ever get to that stage
+		AmpToken: s.AmpToken, // change this to the amp-agent amp token if we ever get to that stage
 		Fallback: false,
 	}, nil
 }
@@ -176,9 +188,9 @@ func (s *Session) callAmpAgent(url string, req *request) (*response, error) {
 	}
 
 	if r.AmpToken == "" {
-		log.Println("Received a response with no ampToken")
+		log.Println("Received a response with no AmpToken")
 	} else {
-		s.ampToken = r.AmpToken // Only the first call in the session changes the value of s.ampToken
+		s.AmpToken = r.AmpToken // Only the first call in the session changes the value of s.AmpToken
 	}
 	return &r, err
 }

@@ -25,7 +25,7 @@ type Amp struct {
 	AmpOpts
 }
 
-func (opts AmpOpts) NewAmp() (*Amp, error) {
+func NewAmp(opts AmpOpts) (*Amp, error) {
 	if opts.ProjectKey == "" {
 		return nil, fmt.Errorf("project key can't be empty")
 	}

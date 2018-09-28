@@ -16,7 +16,7 @@ func main() {
 		SessionLifetime: 1800000,    // 30 minutes
 		Timeout:         10000,      // 10000 == 10 seconds
 	}
-	amp, err := ampOpts.NewAmp()
+	amp, err := amp_ai_v2.NewAmp(ampOpts)
 	if err != nil {
 		panic(err)
 	}

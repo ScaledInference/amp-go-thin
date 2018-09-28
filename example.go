@@ -50,4 +50,12 @@ func main() {
 	} else {
 		fmt.Println("Decision successfully obtained from amp-agent")
 	}
+	// Observe the outcome with the default timeout
+	clickProperties := map[string]interface{}{"url": "google.com", "pageNumber": 1}
+	_, err = firstSession.Observe("Click", clickProperties, 0)
+	if err != nil {
+		fmt.Println("Observe call failed with an error: ", err)
+	} else {
+		fmt.Println("Observed the outcome successfully")
+	}
 }

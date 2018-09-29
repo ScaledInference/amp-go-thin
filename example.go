@@ -10,16 +10,21 @@ func main() {
 	if len(os.Args) != 3 {
 		panic("Usage: example <projectKey> <ampAgent>")
 	}
-	projectKey := os.Args[1]     // e.g. "6f97ea165d886458"
-	ampAgent := os.Args[2]       // e.g. "http://localhost:8100"
-	timeOutMilliseconds := 10000 // 10000 == 10 seconds
-	sessionLifetime := 1800000   // 30 minutes
-	amp, err := amp_ai_v2.NewAmp(projectKey, ampAgent, timeOutMilliseconds, sessionLifetime)
+	ampOpts := amp_ai_v2.AmpOpts{
+		ProjectKey:      os.Args[1], // e.g. "6f97ea165d886458"
+		Domain:          os.Args[2], // e.g. "http://localhost:8100"
+		SessionLifetime: 1800000,    // 30 minutes
+		Timeout:         10000,      // 10000 == 10 seconds
+	}
+	amp, err := amp_ai_v2.NewAmp(ampOpts)
 	if err != nil {
 		panic(err)
 	}
 	// Create a session using the amp instance.
-	firstSession, err := amp.CreateSession()
+	sessionOpts := amp_ai_v2.SessionOpts{
+		UserId: "XYZ",
+	}
+	firstSession, err := amp.CreateNewSession(sessionOpts)
 	if err != nil {
 		panic(err)
 	}
@@ -44,5 +49,13 @@ func main() {
 		fmt.Println("The reason is:", err)
 	} else {
 		fmt.Println("Decision successfully obtained from amp-agent")
+	}
+	// Observe the outcome with the default timeout
+	clickProperties := map[string]interface{}{"url": "google.com", "pageNumber": 1}
+	_, err = firstSession.Observe("Click", clickProperties, 0)
+	if err != nil {
+		fmt.Println("Observe call failed with an error: ", err)
+	} else {
+		fmt.Println("Observed the outcome successfully")
 	}
 }

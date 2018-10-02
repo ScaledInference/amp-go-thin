@@ -32,9 +32,6 @@ func NewAmp(opts AmpOpts) (*Amp, error) {
 	if opts.ProjectKey == "" {
 		return nil, fmt.Errorf("project key can't be empty")
 	}
-	if opts.ProjectKey == "" {
-		return nil, fmt.Errorf("key can't be empty")
-	}
 	if opts.Domain == "" {
 		return nil, fmt.Errorf("domain can't be empty")
 	}

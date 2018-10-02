@@ -47,7 +47,7 @@ func main() {
 	fmt.Println("Returned decision:", decisionAndToken.Decision)
 	if decisionAndToken.Fallback {
 		fmt.Println("Decision NOT successfully obtained from amp-agent. Using a fallback instead.")
-		fmt.Println("The reason is:", err)
+		fmt.Println("The reason is:", decisionAndToken.FailureReason)
 	} else {
 		fmt.Println("Decision successfully obtained from amp-agent")
 	}

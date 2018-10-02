@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"sync/atomic"
 	"time"
 )
@@ -34,9 +35,10 @@ type CandidateField struct {
 }
 
 type DecideResponse struct {
-	Decision map[string]interface{}
-	AmpToken string
-	Fallback bool // want this to be false (to indicate successful interaction with server)
+	Decision      map[string]interface{}
+	AmpToken      string
+	Fallback      bool // want this to be false (to indicate successful interaction with server)
+	FailureReason string
 }
 
 type decisionReq struct {
@@ -140,19 +142,21 @@ func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextPro
 
 	if r.Fallback {
 		return &DecideResponse{
-			Decision: getCandidateByIndex(candidates, 0), // change this to the amp-agent decision if we ever get to that stage
-			AmpToken: s.AmpToken,                         // change this to the amp-agent amp token if we ever get to that stage
-			Fallback: true,
-		}, fmt.Errorf(r.FailureReason)
+			Decision:      getCandidateByIndex(candidates, 0), // change this to the amp-agent decision if we ever get to that stage
+			AmpToken:      s.AmpToken,                         // change this to the amp-agent amp token if we ever get to that stage
+			Fallback:      true,
+			FailureReason: r.FailureReason,
+		}, nil
 	}
 
 	var decision map[string]interface{}
 	err = json.Unmarshal([]byte(r.Decision), &decision)
 	if err != nil {
 		return &DecideResponse{
-			Decision: getCandidateByIndex(candidates, 0),
-			AmpToken: s.AmpToken,
-			Fallback: true,
+			Decision:      getCandidateByIndex(candidates, 0),
+			AmpToken:      s.AmpToken,
+			Fallback:      true,
+			FailureReason: r.FailureReason,
 		}, err
 	}
 
@@ -163,21 +167,28 @@ func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextPro
 	}, nil
 }
 
-func (s *Session) callAmpAgent(ctx context.Context, url string, req *request) (*response, error) {
+func (s *Session) callAmpAgent(ctx context.Context, aaUrl string, req *request) (*response, error) {
 	ba, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Println(string(ba))
-
-	pr, err := http.NewRequest("POST", url, bytes.NewReader(ba))
+	pr, err := http.NewRequest("POST", aaUrl, bytes.NewReader(ba))
 	if err != nil {
 		return nil, err
 	}
 	pr.Header.Set("Content-Type", "application/json")
-	pr.WithContext(ctx)
+	pr = pr.WithContext(ctx)
 	resp, err := s.amp.httpClient.Do(pr)
+	if err != nil {
+		if err.(*url.Error).Timeout() {
+			return &response{
+				Fallback:      true,
+				FailureReason: err.Error(),
+			}, nil
+		}
+		return nil, err
+	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

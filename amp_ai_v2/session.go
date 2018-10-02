@@ -73,7 +73,7 @@ func (s *Session) Observe(contextName string, contextProperties map[string]inter
 	if contextName == "" {
 		return "", fmt.Errorf("context name can't be empty")
 	}
-	_, err := s.callAmpAgent(ctx, s.amp.observeUrl, &request{
+	_, err := s.callAmpAgent(ctx, s.amp.getObserveUrl(s.UserId), &request{
 		UserId:          s.UserId,
 		SessionId:       s.SessionId,
 		Name:            contextName,
@@ -87,11 +87,11 @@ func (s *Session) Observe(contextName string, contextProperties map[string]inter
 }
 
 func (s *Session) DecideWithContext(contextName string, context map[string]interface{}, decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
-	return s.callAmpAgentForDecide(s.amp.decideWithContextUrl, contextName, context, decisionName, candidates, timeOut)
+	return s.callAmpAgentForDecide(s.amp.getDecideWithContextUrl(s.UserId), contextName, context, decisionName, candidates, timeOut)
 }
 
 func (s *Session) Decide(decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
-	return s.callAmpAgentForDecide(s.amp.decideUrl, decisionName, nil, "", candidates, timeOut)
+	return s.callAmpAgentForDecide(s.amp.getDecideUrl(s.UserId), decisionName, nil, "", candidates, timeOut)
 }
 
 func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextProperties map[string]interface{},
@@ -194,6 +194,8 @@ func (s *Session) callAmpAgent(ctx context.Context, aaUrl string, req *request) 
 
 	if r.AmpToken == "" {
 		log.Println("Received a response with no AmpToken")
+	} else if s.amp.DontUseTokens {
+		s.AmpToken = "CUSTOM"
 	} else {
 		s.AmpToken = r.AmpToken // Only the first call in the session changes the value of s.AmpToken
 	}

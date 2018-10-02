@@ -9,16 +9,19 @@ import (
 )
 
 const (
-	defaultTimeout         = 10000   // 10 seconds
+	defaultTimeout         = 10 * time.Second
 	defaultSessionLifetime = 1800000 // 30 minutes
 )
 
 type AmpOpts struct {
-	ProjectKey, Domain       string
-	Timeout, SessionLifetime int
+	ProjectKey, Domain string
+	Timeout            time.Duration
+	SessionLifetime    int
 }
 
 type Amp struct {
+	timeOut                                     time.Duration
+	sessionLifetime                             int
 	ssl                                         bool
 	decideWithContextUrl, decideUrl, observeUrl string
 	httpClient                                  *http.Client
@@ -28,6 +31,9 @@ type Amp struct {
 func NewAmp(opts AmpOpts) (*Amp, error) {
 	if opts.ProjectKey == "" {
 		return nil, fmt.Errorf("project key can't be empty")
+	}
+	if opts.ProjectKey == "" {
+		return nil, fmt.Errorf("key can't be empty")
 	}
 	if opts.Domain == "" {
 		return nil, fmt.Errorf("domain can't be empty")
@@ -64,6 +70,7 @@ func NewAmp(opts AmpOpts) (*Amp, error) {
 				MaxIdleConnsPerHost: 5000,
 				IdleConnTimeout:     time.Minute,
 			},
+			Timeout: opts.Timeout,
 		},
 	}, nil
 }

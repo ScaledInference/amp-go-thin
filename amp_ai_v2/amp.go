@@ -2,6 +2,7 @@ package amp_ai_v2
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -54,20 +55,39 @@ func NewAmp(opts AmpOpts) (*Amp, error) {
 		ssl = true
 	}
 
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        5000,
+			MaxIdleConnsPerHost: 5000,
+			IdleConnTimeout:     time.Minute,
+		},
+		Timeout: opts.Timeout,
+	}
+
+	req, err := http.NewRequest(http.MethodGet, opts.Domain+"/test/update_from_spa/"+opts.ProjectKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("amp agent returned: %s : %s", resp.Status, string(body))
+	}
+
 	return &Amp{
 		AmpOpts:              opts,
 		ssl:                  ssl,
 		decideWithContextUrl: opts.Domain + "/api/core/v2/" + opts.ProjectKey + "/decideWithContextV2",
 		decideUrl:            opts.Domain + "/api/core/v2/" + opts.ProjectKey + "/decideV2",
 		observeUrl:           opts.Domain + "/api/core/v2/" + opts.ProjectKey + "/observeV2",
-		httpClient: &http.Client{
-			Transport: &http.Transport{
-				MaxIdleConns:        5000,
-				MaxIdleConnsPerHost: 5000,
-				IdleConnTimeout:     time.Minute,
-			},
-			Timeout: opts.Timeout,
-		},
+		httpClient:           httpClient,
 	}, nil
 }
 

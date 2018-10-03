@@ -166,7 +166,7 @@ func (s *Session) callAmpAgent(ctx context.Context, aaUrl string, req *request) 
 		return nil, err
 	}
 
-	pr, err := http.NewRequest("POST", aaUrl, bytes.NewReader(ba))
+	pr, err := http.NewRequest(http.MethodPost, aaUrl, bytes.NewReader(ba))
 	if err != nil {
 		return nil, err
 	}

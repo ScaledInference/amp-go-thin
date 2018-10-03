@@ -2,6 +2,7 @@ package amp_ai_v2
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,7 +24,8 @@ type Session struct {
 
 type SessionOpts struct {
 	UserId, SessionId, AmpToken string
-	Timeout, SessionLifetime    int
+	Timeout                     time.Duration
+	SessionLifetime             time.Duration
 }
 
 type CandidateField struct {
@@ -32,9 +34,10 @@ type CandidateField struct {
 }
 
 type DecideResponse struct {
-	Decision map[string]interface{}
-	AmpToken string
-	Fallback bool // want this to be false (to indicate successful interaction with server)
+	Decision      map[string]interface{}
+	AmpToken      string
+	Fallback      bool // want this to be false (to indicate successful interaction with server)
+	FailureReason string
 }
 
 type decisionReq struct {
@@ -56,50 +59,49 @@ type request struct {
 }
 
 type response struct {
-	AmpToken      string `json:"ampToken"`
-	Decision      string `json:"decision"`
-	Fallback      bool   `json:"fallback"`
-	FailureReason string `json:"failureReason"`
+	AmpToken string `json:"ampToken"`
+	Decision string `json:"decision"`
 }
 
-
-func (s *Session) Observe(contextName string, contextProperties map[string]interface{}, timeOut int) (string, error) {
+func (s *Session) Observe(contextName string, contextProperties map[string]interface{}, timeOut time.Duration) (string, error) {
 	if timeOut == 0 {
 		timeOut = s.Timeout
 	}
+	ctx, cf := context.WithTimeout(context.Background(), timeOut)
+	defer cf()
+
 	if contextName == "" {
 		return "", fmt.Errorf("context name can't be empty")
 	}
-	_, err := s.callAmpAgent(s.amp.observeUrl, &request{
+	_, err := s.callAmpAgent(ctx, s.amp.observeUrl, &request{
 		UserId:          s.UserId,
 		SessionId:       s.SessionId,
 		Name:            contextName,
 		Index:           atomic.AddInt32(&s.index, 1),
 		Ts:              time.Now().UnixNano() / 1e6,
 		AmpToken:        s.AmpToken,
-		SessionLifetime: s.SessionLifetime,
+		SessionLifetime: int(s.SessionLifetime / time.Millisecond),
 		Properties:      contextProperties,
 	})
 	return s.AmpToken, err
 }
 
-func (s *Session) DecideWithContext(contextName string, context map[string]interface{}, decisionName string, candidates []CandidateField, timeOut int) (*DecideResponse, error) {
+func (s *Session) DecideWithContext(contextName string, context map[string]interface{}, decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
 	return s.callAmpAgentForDecide(s.amp.decideWithContextUrl, contextName, context, decisionName, candidates, timeOut)
 }
 
-func (s *Session) Decide(decisionName string, candidates []CandidateField, timeOut int) (*DecideResponse, error) {
+func (s *Session) Decide(decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
 	return s.callAmpAgentForDecide(s.amp.decideUrl, decisionName, nil, "", candidates, timeOut)
 }
 
-func (s *Session) callAmpAgentForDecide(
-	endpoint, contextName string,
-	contextProperties map[string]interface{},
-	decisionName string,
-	candidates []CandidateField,
-	timeOut int) (*DecideResponse, error) {
+func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextProperties map[string]interface{},
+	decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
 	if timeOut == 0 {
 		timeOut = s.Timeout
 	}
+	ctx, cf := context.WithTimeout(context.Background(), timeOut)
+	defer cf()
+
 	if contextName == "" {
 		return nil, fmt.Errorf("context name can't be empty")
 	}
@@ -121,7 +123,7 @@ func (s *Session) callAmpAgentForDecide(
 		Index:           atomic.AddInt32(&s.index, 1),
 		Ts:              time.Now().UnixNano() / 1e6,
 		AmpToken:        s.AmpToken,
-		SessionLifetime: s.SessionLifetime,
+		SessionLifetime: int(s.SessionLifetime / time.Millisecond),
 		Properties:      contextProperties,
 		DecisionName:    decisionName,
 		Decision: &decisionReq{
@@ -130,27 +132,25 @@ func (s *Session) callAmpAgentForDecide(
 		},
 	}
 
-	r, err := s.callAmpAgent(endpoint, req)
+	r, err := s.callAmpAgent(ctx, endpoint, req)
 	if err != nil {
-		return nil, err
-	}
-
-	if r.Fallback {
 		return &DecideResponse{
-			Decision: getCandidateByIndex(candidates, 0), // change this to the amp-agent decision if we ever get to that stage
-			AmpToken: s.AmpToken,                         // change this to the amp-agent amp token if we ever get to that stage
-			Fallback: true,
-		}, fmt.Errorf(r.FailureReason)
+			Decision:      getCandidateByIndex(candidates, 0), // change this to the amp-agent decision if we ever get to that stage
+			AmpToken:      s.AmpToken,                         // change this to the amp-agent amp token if we ever get to that stage
+			Fallback:      true,
+			FailureReason: err.Error(),
+		}, nil
 	}
 
 	var decision map[string]interface{}
 	err = json.Unmarshal([]byte(r.Decision), &decision)
 	if err != nil {
 		return &DecideResponse{
-			Decision: getCandidateByIndex(candidates, 0),
-			AmpToken: s.AmpToken,
-			Fallback: true,
-		}, err
+			Decision:      getCandidateByIndex(candidates, 0),
+			AmpToken:      s.AmpToken,
+			Fallback:      true,
+			FailureReason: fmt.Sprintf("Can't unmarshal decision: %s", err),
+		}, nil
 	}
 
 	return &DecideResponse{
@@ -160,14 +160,19 @@ func (s *Session) callAmpAgentForDecide(
 	}, nil
 }
 
-func (s *Session) callAmpAgent(url string, req *request) (*response, error) {
+func (s *Session) callAmpAgent(ctx context.Context, aaUrl string, req *request) (*response, error) {
 	ba, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Println(string(ba))
-	resp, err := s.amp.httpClient.Post(url, "application/json", bytes.NewReader(ba))
+	pr, err := http.NewRequest(http.MethodPost, aaUrl, bytes.NewReader(ba))
+	if err != nil {
+		return nil, err
+	}
+	pr.Header.Set("Content-Type", "application/json")
+	pr = pr.WithContext(ctx)
+	resp, err := s.amp.httpClient.Do(pr)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +183,7 @@ func (s *Session) callAmpAgent(url string, req *request) (*response, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("amp agent returned: %s\n%s", resp.Status, string(body))
+		return nil, fmt.Errorf("amp agent returned: %s : %s", resp.Status, string(body))
 	}
 
 	var r response
@@ -192,7 +197,7 @@ func (s *Session) callAmpAgent(url string, req *request) (*response, error) {
 	} else {
 		s.AmpToken = r.AmpToken // Only the first call in the session changes the value of s.AmpToken
 	}
-	return &r, err
+	return &r, nil
 }
 
 func getCandidateByIndex(candidates []CandidateField, index int) map[string]interface{} {

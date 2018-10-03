@@ -10,18 +10,17 @@ import (
 
 const (
 	defaultTimeout         = 10 * time.Second
-	defaultSessionLifetime = 1800000 // 30 minutes
+	defaultSessionLifetime = 30 * time.Minute
 )
 
 type AmpOpts struct {
 	ProjectKey, Domain string
 	Timeout            time.Duration
-	SessionLifetime    int
+	SessionLifetime    time.Duration
 }
 
 type Amp struct {
 	timeOut                                     time.Duration
-	sessionLifetime                             int
 	ssl                                         bool
 	decideWithContextUrl, decideUrl, observeUrl string
 	httpClient                                  *http.Client

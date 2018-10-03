@@ -25,7 +25,7 @@ type Session struct {
 type SessionOpts struct {
 	UserId, SessionId, AmpToken string
 	Timeout                     time.Duration
-	SessionLifetime             int
+	SessionLifetime             time.Duration
 }
 
 type CandidateField struct {
@@ -80,7 +80,7 @@ func (s *Session) Observe(contextName string, contextProperties map[string]inter
 		Index:           atomic.AddInt32(&s.index, 1),
 		Ts:              time.Now().UnixNano() / 1e6,
 		AmpToken:        s.AmpToken,
-		SessionLifetime: s.SessionLifetime,
+		SessionLifetime: int(s.SessionLifetime / time.Millisecond),
 		Properties:      contextProperties,
 	})
 	return s.AmpToken, err
@@ -123,7 +123,7 @@ func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextPro
 		Index:           atomic.AddInt32(&s.index, 1),
 		Ts:              time.Now().UnixNano() / 1e6,
 		AmpToken:        s.AmpToken,
-		SessionLifetime: s.SessionLifetime,
+		SessionLifetime: int(s.SessionLifetime / time.Millisecond),
 		Properties:      contextProperties,
 		DecisionName:    decisionName,
 		Decision: &decisionReq{

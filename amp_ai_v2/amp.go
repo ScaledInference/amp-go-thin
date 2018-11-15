@@ -120,11 +120,11 @@ func (a *Amp) getDecideWithContextUrl(userId string) string {
 }
 
 func (a *Amp) getDecideUrl(userId string) string {
-	return a.selectAmpAgent(userId) + a.ProjectKey + "/decideV2"
+	return a.selectAmpAgent(userId) + "/api/core/v2/" + a.ProjectKey + "/decideV2"
 }
 
 func (a *Amp) getObserveUrl(userId string) string {
-	return a.selectAmpAgent(userId) + a.ProjectKey + "/observeV2"
+	return a.selectAmpAgent(userId) + "/api/core/v2/" + a.ProjectKey + "/observeV2"
 }
 
 func (a *Amp) selectAmpAgent(userId string) (aa string) {

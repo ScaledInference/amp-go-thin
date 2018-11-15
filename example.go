@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/ScaledInference/amp-go-thin/amp_ai_v2"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -12,11 +11,10 @@ func main() {
 	if len(os.Args) != 3 {
 		panic("Usage: example <projectKey> <ampAgent>")
 	}
-	ampAgents := strings.Split(os.Args[2], ":")
 	ampOpts := amp_ai_v2.AmpOpts{
-		ProjectKey:      os.Args[1], // e.g. "6f97ea165d886458"
-		AmpAgents:       ampAgents,  // e.g. "http://localhost:8100"
-		SessionLifetime: 1800000,    // 30 minutes
+		ProjectKey:      os.Args[1],           // e.g. "6f97ea165d886458"
+		AmpAgents:       []string{os.Args[2]}, // e.g. "http://localhost:8100"
+		SessionLifetime: 1800000,              // 30 minutes
 		Timeout:         10 * time.Second,
 	}
 	amp, err := amp_ai_v2.NewAmp(ampOpts)

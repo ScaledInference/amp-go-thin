@@ -61,7 +61,11 @@ func NewAmp(opts AmpOpts) (*Amp, error) {
 		Timeout: opts.Timeout,
 	}
 
-	for _, aa := range opts.AmpAgents {
+	for i, aa := range opts.AmpAgents {
+		if !strings.HasSuffix(aa, "/") {
+			aa = aa + "/"
+			opts.AmpAgents[i] = aa
+		}
 		if !strings.HasPrefix(aa, "http") {
 			return nil, fmt.Errorf(`AmpAgent "` + aa + `" must start with http or https`)
 		}

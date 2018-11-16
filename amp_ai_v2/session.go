@@ -87,6 +87,9 @@ func (s *Session) Observe(contextName string, contextProperties map[string]inter
 }
 
 func (s *Session) DecideWithContext(contextName string, context map[string]interface{}, decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
+	if contextName == "" {
+		return nil, fmt.Errorf("context name can't be empty")
+	}
 	return s.callAmpAgentForDecide(s.amp.getDecideWithContextUrl(s.UserId), contextName, context, decisionName, candidates, timeOut)
 }
 
@@ -102,8 +105,8 @@ func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextPro
 	ctx, cf := context.WithTimeout(context.Background(), timeOut)
 	defer cf()
 
-	if contextName == "" {
-		return nil, fmt.Errorf("context name can't be empty")
+	if decisionName == "" {
+		return nil, fmt.Errorf("decision name can't be empty")
 	}
 
 	numCandidates := 1

@@ -91,7 +91,7 @@ func (s *Session) DecideWithContext(contextName string, context map[string]inter
 }
 
 func (s *Session) Decide(decisionName string, candidates []CandidateField, timeOut time.Duration) (*DecideResponse, error) {
-	return s.callAmpAgentForDecide(s.amp.getDecideUrl(s.UserId), decisionName, nil, "", candidates, timeOut)
+	return s.callAmpAgentForDecide(s.amp.getDecideUrl(s.UserId), "", nil, decisionName, candidates, timeOut)
 }
 
 func (s *Session) callAmpAgentForDecide(endpoint, contextName string, contextProperties map[string]interface{},

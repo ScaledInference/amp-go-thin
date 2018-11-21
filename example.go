@@ -14,7 +14,7 @@ func main() {
 	ampOpts := amp_ai_v2.AmpOpts{
 		ProjectKey:      os.Args[1],           // e.g. "6f97ea165d886458"
 		AmpAgents:       []string{os.Args[2]}, // e.g. "http://localhost:8100"
-		SessionLifetime: 1800000,              // 30 minutes
+		SessionLifetime: 30 * time.Minute,
 		Timeout:         10 * time.Second,
 	}
 	amp, err := amp_ai_v2.NewAmp(ampOpts)

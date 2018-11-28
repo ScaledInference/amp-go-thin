@@ -101,7 +101,7 @@ func (a *Amp) CreateNewSession(opts SessionOpts) (*Session, error) {
 	if opts.UserId == "" {
 		opts.UserId = generateRandomString()
 	}
-	if opts.SessionId == "" {
+	if !a.DontUseTokens && opts.SessionId == "" {
 		opts.SessionId = generateRandomString()
 	}
 	if opts.Timeout == 0 {
